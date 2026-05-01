@@ -6,6 +6,16 @@ import { requireAuth } from "../middlewares/auth";
 
 const router: IRouter = Router();
 
+const BANNED_KEYWORDS = [
+  "spam", "scam", "viagra", "casino", "lottery", "free money",
+  "click here", "buy now", "make money fast", "get rich",
+];
+
+function containsBannedKeyword(text: string): boolean {
+  const lower = text.toLowerCase();
+  return BANNED_KEYWORDS.some(kw => lower.includes(kw));
+}
+
 router.get("/groups/:id/messages", async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = parseInt(raw, 10);
@@ -31,7 +41,7 @@ router.get("/groups/:id/messages", async (req, res): Promise<void> => {
 
   const result = ordered.map(m => {
     const user = userMap.get(m.userId);
-    const { password: _pw, ...userSafe } = user ?? { id: 0, name: "", email: "", password: "", faculty: "", academicYear: 0, subjectsOfInterest: [], createdAt: new Date() };
+    const { password: _pw, ...userSafe } = user ?? { id: 0, name: "", email: "", password: "", faculty: "", academicYear: 0, subjectsOfInterest: [], isBanned: false, createdAt: new Date() };
     return { ...m, user: userSafe };
   });
 
@@ -58,14 +68,17 @@ router.post("/groups/:id/messages", requireAuth, async (req, res): Promise<void>
     return;
   }
 
+  const flagged = containsBannedKeyword(parsed.data.content);
+
   const [message] = await db.insert(messagesTable).values({
     groupId: id,
     userId: req.user!.userId,
     content: parsed.data.content,
+    isFlagged: flagged,
   }).returning();
 
   const [user] = await db.select().from(usersTable).where(eq(usersTable.id, req.user!.userId));
-  const { password: _pw, ...userSafe } = user ?? { id: 0, name: "", email: "", password: "", faculty: "", academicYear: 0, subjectsOfInterest: [], createdAt: new Date() };
+  const { password: _pw, ...userSafe } = user ?? { id: 0, name: "", email: "", password: "", faculty: "", academicYear: 0, subjectsOfInterest: [], isBanned: false, createdAt: new Date() };
 
   res.status(201).json({ ...message, user: userSafe });
 });

@@ -6,10 +6,21 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from "./adminGetLogsParams";
+export * from "./adminGetMessagesParams";
+export * from "./adminGetReportsParams";
+export * from "./adminGetReportsStatus";
+export * from "./adminLogEntry";
+export * from "./adminMessage";
 export * from "./adminStats";
 export * from "./authResponse";
+export * from "./banUserBody";
+export * from "./changeRoleBody";
+export * from "./changeRoleBodyRole";
 export * from "./createGroupBody";
 export * from "./createGroupBodyType";
+export * from "./createReportBody";
+export * from "./createReportBodyType";
 export * from "./dashboardSummary";
 export * from "./dashboardSummarySubjectBreakdownItem";
 export * from "./errorResponse";
@@ -24,6 +35,10 @@ export * from "./healthStatus";
 export * from "./loginBody";
 export * from "./message";
 export * from "./registerBody";
+export * from "./report";
+export * from "./reportStatus";
+export * from "./reportType";
+export * from "./reportWithReporter";
 export * from "./sendMessageBody";
 export * from "./successResponse";
 export * from "./updateProfileBody";

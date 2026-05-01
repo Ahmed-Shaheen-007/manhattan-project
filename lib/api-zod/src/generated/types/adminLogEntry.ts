@@ -7,12 +7,12 @@
  */
 import type { User } from "./user";
 
-export interface Message {
+export interface AdminLogEntry {
   id: number;
-  groupId: number;
-  userId: number;
-  content: string;
-  isFlagged: boolean;
+  adminId: number;
+  action: string;
+  targetType: string;
+  targetId: number;
   createdAt: Date;
-  user?: User;
+  admin?: User;
 }

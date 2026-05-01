@@ -6,6 +6,8 @@ import { requireAuth, optionalAuth } from "../middlewares/auth";
 
 const router: IRouter = Router();
 
+const DAILY_GROUP_LIMIT = 3;
+
 router.get("/groups", optionalAuth, async (req, res): Promise<void> => {
   const { subject, type, date, search } = req.query as Record<string, string | undefined>;
 
@@ -53,7 +55,7 @@ router.get("/groups", optionalAuth, async (req, res): Promise<void> => {
 
   const result = groups.map(g => {
     const creator = creatorMap.get(g.createdBy);
-    const { password: _pw, ...creatorSafe } = creator ?? { id: 0, name: "", email: "", password: "", faculty: "", academicYear: 0, subjectsOfInterest: [], createdAt: new Date() };
+    const { password: _pw, ...creatorSafe } = creator ?? { id: 0, name: "", email: "", password: "", faculty: "", academicYear: 0, subjectsOfInterest: [], isBanned: false, createdAt: new Date() };
     const isMember = currentUserId ? allMembers.some(m => m.groupId === g.id && m.userId === currentUserId) : false;
     return { ...g, memberCount: memberCountMap.get(g.id) ?? 0, creator: creatorSafe, isMember };
   });
@@ -68,15 +70,43 @@ router.post("/groups", requireAuth, async (req, res): Promise<void> => {
     return;
   }
 
+  const userId = req.user!.userId;
+
+  // Daily creation limit
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const todayGroups = await db.select().from(groupsTable)
+    .where(and(eq(groupsTable.createdBy, userId), gte(groupsTable.createdAt, todayStart)));
+  if (todayGroups.length >= DAILY_GROUP_LIMIT) {
+    res.status(429).json({ error: `You can only create ${DAILY_GROUP_LIMIT} groups per day` });
+    return;
+  }
+
+  // Duplicate detection: same subject + within 1 hour of given dateTime
+  const requestedTime = new Date(parsed.data.dateTime);
+  const windowStart = new Date(requestedTime.getTime() - 60 * 60 * 1000);
+  const windowEnd = new Date(requestedTime.getTime() + 60 * 60 * 1000);
+  const duplicates = await db.select().from(groupsTable).where(
+    and(
+      ilike(groupsTable.subject, parsed.data.subject),
+      gte(groupsTable.dateTime, windowStart),
+      lte(groupsTable.dateTime, windowEnd),
+    )
+  );
+  if (duplicates.length > 0) {
+    res.status(400).json({ error: "A group with the same subject already exists around that time" });
+    return;
+  }
+
   const [group] = await db.insert(groupsTable).values({
     ...parsed.data,
-    dateTime: new Date(parsed.data.dateTime),
+    dateTime: requestedTime,
     location: parsed.data.location ?? null,
-    createdBy: req.user!.userId,
+    createdBy: userId,
   }).returning();
 
   // Auto-join creator
-  await db.insert(groupMembersTable).values({ userId: req.user!.userId, groupId: group.id });
+  await db.insert(groupMembersTable).values({ userId, groupId: group.id });
 
   res.status(201).json(group);
 });
@@ -97,7 +127,7 @@ router.get("/groups/:id", optionalAuth, async (req, res): Promise<void> => {
   const memberUsersSafe = memberUsers.map(({ password: _pw, ...u }) => u);
 
   const [creator] = await db.select().from(usersTable).where(eq(usersTable.id, group.createdBy));
-  const { password: _pw, ...creatorSafe } = creator ?? { id: 0, name: "", email: "", password: "", faculty: "", academicYear: 0, subjectsOfInterest: [], createdAt: new Date() };
+  const { password: _pw, ...creatorSafe } = creator ?? { id: 0, name: "", email: "", password: "", faculty: "", academicYear: 0, subjectsOfInterest: [], isBanned: false, createdAt: new Date() };
 
   const currentUserId = req.user?.userId;
   const isMember = currentUserId ? members.some(m => m.userId === currentUserId) : false;

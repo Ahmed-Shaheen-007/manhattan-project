@@ -5,9 +5,8 @@
  * Study Group Finder API
  * OpenAPI spec version: 0.1.0
  */
-import type { UserWithRole } from "./userWithRole";
+import type { Message } from "./message";
 
-export interface AuthResponse {
-  user: UserWithRole;
-  token: string;
-}
+export type AdminMessage = Message & {
+  groupTitle: string;
+};

@@ -37,15 +37,22 @@ export const LoginBody = zod.object({
 });
 
 export const LoginResponse = zod.object({
-  user: zod.object({
-    id: zod.number(),
-    name: zod.string(),
-    email: zod.string(),
-    faculty: zod.string(),
-    academicYear: zod.number(),
-    subjectsOfInterest: zod.array(zod.string()).optional(),
-    createdAt: zod.coerce.date().optional(),
-  }),
+  user: zod
+    .object({
+      id: zod.number(),
+      name: zod.string(),
+      email: zod.string(),
+      faculty: zod.string(),
+      academicYear: zod.number(),
+      subjectsOfInterest: zod.array(zod.string()).optional(),
+      isBanned: zod.boolean(),
+      createdAt: zod.coerce.date().optional(),
+    })
+    .and(
+      zod.object({
+        role: zod.enum(["student", "admin"]),
+      }),
+    ),
   token: zod.string(),
 });
 
@@ -60,15 +67,22 @@ export const LogoutResponse = zod.object({
 /**
  * @summary Get current authenticated user
  */
-export const GetMeResponse = zod.object({
-  id: zod.number(),
-  name: zod.string(),
-  email: zod.string(),
-  faculty: zod.string(),
-  academicYear: zod.number(),
-  subjectsOfInterest: zod.array(zod.string()).optional(),
-  createdAt: zod.coerce.date().optional(),
-});
+export const GetMeResponse = zod
+  .object({
+    id: zod.number(),
+    name: zod.string(),
+    email: zod.string(),
+    faculty: zod.string(),
+    academicYear: zod.number(),
+    subjectsOfInterest: zod.array(zod.string()).optional(),
+    isBanned: zod.boolean(),
+    createdAt: zod.coerce.date().optional(),
+  })
+  .and(
+    zod.object({
+      role: zod.enum(["student", "admin"]),
+    }),
+  );
 
 /**
  * @summary Get a user profile
@@ -84,6 +98,7 @@ export const GetUserResponse = zod.object({
   faculty: zod.string(),
   academicYear: zod.number(),
   subjectsOfInterest: zod.array(zod.string()).optional(),
+  isBanned: zod.boolean(),
   createdAt: zod.coerce.date().optional(),
 });
 
@@ -108,6 +123,7 @@ export const UpdateProfileResponse = zod.object({
   faculty: zod.string(),
   academicYear: zod.number(),
   subjectsOfInterest: zod.array(zod.string()).optional(),
+  isBanned: zod.boolean(),
   createdAt: zod.coerce.date().optional(),
 });
 
@@ -142,6 +158,7 @@ export const GetUserGroupsResponseItem = zod
           faculty: zod.string(),
           academicYear: zod.number(),
           subjectsOfInterest: zod.array(zod.string()).optional(),
+          isBanned: zod.boolean(),
           createdAt: zod.coerce.date().optional(),
         })
         .optional(),
@@ -184,6 +201,7 @@ export const GetGroupsResponseItem = zod
           faculty: zod.string(),
           academicYear: zod.number(),
           subjectsOfInterest: zod.array(zod.string()).optional(),
+          isBanned: zod.boolean(),
           createdAt: zod.coerce.date().optional(),
         })
         .optional(),
@@ -236,6 +254,7 @@ export const GetGroupResponse = zod
           faculty: zod.string(),
           academicYear: zod.number(),
           subjectsOfInterest: zod.array(zod.string()).optional(),
+          isBanned: zod.boolean(),
           createdAt: zod.coerce.date().optional(),
         })
         .optional(),
@@ -252,6 +271,7 @@ export const GetGroupResponse = zod
           faculty: zod.string(),
           academicYear: zod.number(),
           subjectsOfInterest: zod.array(zod.string()).optional(),
+          isBanned: zod.boolean(),
           createdAt: zod.coerce.date().optional(),
         }),
       ),
@@ -308,6 +328,7 @@ export const GetGroupMembersResponseItem = zod.object({
   faculty: zod.string(),
   academicYear: zod.number(),
   subjectsOfInterest: zod.array(zod.string()).optional(),
+  isBanned: zod.boolean(),
   createdAt: zod.coerce.date().optional(),
 });
 export const GetGroupMembersResponse = zod.array(GetGroupMembersResponseItem);
@@ -331,6 +352,7 @@ export const GetMessagesResponseItem = zod.object({
   groupId: zod.number(),
   userId: zod.number(),
   content: zod.string(),
+  isFlagged: zod.boolean(),
   createdAt: zod.coerce.date(),
   user: zod
     .object({
@@ -340,6 +362,7 @@ export const GetMessagesResponseItem = zod.object({
       faculty: zod.string(),
       academicYear: zod.number(),
       subjectsOfInterest: zod.array(zod.string()).optional(),
+      isBanned: zod.boolean(),
       createdAt: zod.coerce.date().optional(),
     })
     .optional(),
@@ -355,6 +378,15 @@ export const SendMessageParams = zod.object({
 
 export const SendMessageBody = zod.object({
   content: zod.string(),
+});
+
+/**
+ * @summary Submit a report
+ */
+export const CreateReportBody = zod.object({
+  type: zod.enum(["user", "group", "message"]),
+  targetId: zod.number(),
+  reason: zod.string(),
 });
 
 /**
@@ -402,6 +434,7 @@ export const GetUpcomingGroupsResponseItem = zod
           faculty: zod.string(),
           academicYear: zod.number(),
           subjectsOfInterest: zod.array(zod.string()).optional(),
+          isBanned: zod.boolean(),
           createdAt: zod.coerce.date().optional(),
         })
         .optional(),
@@ -439,6 +472,7 @@ export const GetPopularGroupsResponseItem = zod
           faculty: zod.string(),
           academicYear: zod.number(),
           subjectsOfInterest: zod.array(zod.string()).optional(),
+          isBanned: zod.boolean(),
           createdAt: zod.coerce.date().optional(),
         })
         .optional(),
@@ -458,6 +492,7 @@ export const AdminGetUsersResponseItem = zod
     faculty: zod.string(),
     academicYear: zod.number(),
     subjectsOfInterest: zod.array(zod.string()).optional(),
+    isBanned: zod.boolean(),
     createdAt: zod.coerce.date().optional(),
   })
   .and(
@@ -475,6 +510,38 @@ export const AdminDeleteUserParams = zod.object({
 });
 
 export const AdminDeleteUserResponse = zod.object({
+  success: zod.boolean(),
+  message: zod.string().optional(),
+});
+
+/**
+ * @summary Ban or unban a user (admin only)
+ */
+export const AdminBanUserParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const AdminBanUserBody = zod.object({
+  banned: zod.boolean(),
+});
+
+export const AdminBanUserResponse = zod.object({
+  success: zod.boolean(),
+  message: zod.string().optional(),
+});
+
+/**
+ * @summary Change a user's role (admin only)
+ */
+export const AdminChangeRoleParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const AdminChangeRoleBody = zod.object({
+  role: zod.enum(["student", "admin"]),
+});
+
+export const AdminChangeRoleResponse = zod.object({
   success: zod.boolean(),
   message: zod.string().optional(),
 });
@@ -506,6 +573,7 @@ export const AdminGetGroupsResponseItem = zod
           faculty: zod.string(),
           academicYear: zod.number(),
           subjectsOfInterest: zod.array(zod.string()).optional(),
+          isBanned: zod.boolean(),
           createdAt: zod.coerce.date().optional(),
         })
         .optional(),
@@ -513,6 +581,59 @@ export const AdminGetGroupsResponseItem = zod
     }),
   );
 export const AdminGetGroupsResponse = zod.array(AdminGetGroupsResponseItem);
+
+/**
+ * @summary Delete a group (admin only)
+ */
+export const AdminDeleteGroupParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const AdminDeleteGroupResponse = zod.object({
+  success: zod.boolean(),
+  message: zod.string().optional(),
+});
+
+/**
+ * @summary Get all messages with pagination (admin only)
+ */
+export const adminGetMessagesQueryLimitDefault = 50;
+export const adminGetMessagesQueryOffsetDefault = 0;
+
+export const AdminGetMessagesQueryParams = zod.object({
+  groupId: zod.coerce.number().optional(),
+  flagged: zod.coerce.boolean().optional(),
+  limit: zod.coerce.number().default(adminGetMessagesQueryLimitDefault),
+  offset: zod.coerce.number().default(adminGetMessagesQueryOffsetDefault),
+});
+
+export const AdminGetMessagesResponseItem = zod
+  .object({
+    id: zod.number(),
+    groupId: zod.number(),
+    userId: zod.number(),
+    content: zod.string(),
+    isFlagged: zod.boolean(),
+    createdAt: zod.coerce.date(),
+    user: zod
+      .object({
+        id: zod.number(),
+        name: zod.string(),
+        email: zod.string(),
+        faculty: zod.string(),
+        academicYear: zod.number(),
+        subjectsOfInterest: zod.array(zod.string()).optional(),
+        isBanned: zod.boolean(),
+        createdAt: zod.coerce.date().optional(),
+      })
+      .optional(),
+  })
+  .and(
+    zod.object({
+      groupTitle: zod.string(),
+    }),
+  );
+export const AdminGetMessagesResponse = zod.array(AdminGetMessagesResponseItem);
 
 /**
  * @summary Delete a message (admin only)
@@ -527,6 +648,86 @@ export const AdminDeleteMessageResponse = zod.object({
 });
 
 /**
+ * @summary Get all reports (admin only)
+ */
+export const AdminGetReportsQueryParams = zod.object({
+  status: zod.enum(["pending", "resolved"]).optional(),
+});
+
+export const AdminGetReportsResponseItem = zod
+  .object({
+    id: zod.number(),
+    reporterId: zod.number(),
+    type: zod.enum(["user", "group", "message"]),
+    targetId: zod.number(),
+    reason: zod.string(),
+    status: zod.enum(["pending", "resolved"]),
+    createdAt: zod.coerce.date(),
+  })
+  .and(
+    zod.object({
+      reporter: zod
+        .object({
+          id: zod.number(),
+          name: zod.string(),
+          email: zod.string(),
+          faculty: zod.string(),
+          academicYear: zod.number(),
+          subjectsOfInterest: zod.array(zod.string()).optional(),
+          isBanned: zod.boolean(),
+          createdAt: zod.coerce.date().optional(),
+        })
+        .optional(),
+    }),
+  );
+export const AdminGetReportsResponse = zod.array(AdminGetReportsResponseItem);
+
+/**
+ * @summary Resolve a report (admin only)
+ */
+export const AdminResolveReportParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const AdminResolveReportResponse = zod.object({
+  success: zod.boolean(),
+  message: zod.string().optional(),
+});
+
+/**
+ * @summary Get admin audit logs (admin only)
+ */
+export const adminGetLogsQueryLimitDefault = 100;
+export const adminGetLogsQueryOffsetDefault = 0;
+
+export const AdminGetLogsQueryParams = zod.object({
+  limit: zod.coerce.number().default(adminGetLogsQueryLimitDefault),
+  offset: zod.coerce.number().default(adminGetLogsQueryOffsetDefault),
+});
+
+export const AdminGetLogsResponseItem = zod.object({
+  id: zod.number(),
+  adminId: zod.number(),
+  action: zod.string(),
+  targetType: zod.string(),
+  targetId: zod.number(),
+  createdAt: zod.coerce.date(),
+  admin: zod
+    .object({
+      id: zod.number(),
+      name: zod.string(),
+      email: zod.string(),
+      faculty: zod.string(),
+      academicYear: zod.number(),
+      subjectsOfInterest: zod.array(zod.string()).optional(),
+      isBanned: zod.boolean(),
+      createdAt: zod.coerce.date().optional(),
+    })
+    .optional(),
+});
+export const AdminGetLogsResponse = zod.array(AdminGetLogsResponseItem);
+
+/**
  * @summary Get admin platform stats
  */
 export const AdminGetStatsResponse = zod.object({
@@ -536,4 +737,7 @@ export const AdminGetStatsResponse = zod.object({
   activeGroupsToday: zod.number(),
   newUsersThisWeek: zod.number(),
   newGroupsThisWeek: zod.number(),
+  totalReports: zod.number(),
+  pendingReports: zod.number(),
+  bannedUsers: zod.number(),
 });

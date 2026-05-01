@@ -5,14 +5,9 @@
  * Study Group Finder API
  * OpenAPI spec version: 0.1.0
  */
+import type { Report } from "./report";
 import type { User } from "./user";
 
-export interface Message {
-  id: number;
-  groupId: number;
-  userId: number;
-  content: string;
-  isFlagged: boolean;
-  createdAt: Date;
-  user?: User;
-}
+export type ReportWithReporter = Report & {
+  reporter?: User;
+};

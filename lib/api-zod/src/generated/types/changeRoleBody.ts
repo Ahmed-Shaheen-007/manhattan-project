@@ -5,9 +5,8 @@
  * Study Group Finder API
  * OpenAPI spec version: 0.1.0
  */
-import type { UserWithRole } from "./userWithRole";
+import type { ChangeRoleBodyRole } from "./changeRoleBodyRole";
 
-export interface AuthResponse {
-  user: UserWithRole;
-  token: string;
+export interface ChangeRoleBody {
+  role: ChangeRoleBodyRole;
 }

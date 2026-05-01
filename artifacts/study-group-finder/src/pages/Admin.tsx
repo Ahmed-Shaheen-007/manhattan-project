@@ -1,14 +1,35 @@
-import { useGetMe, useAdminGetStats, useAdminGetUsers, useAdminGetGroups, useAdminDeleteUser, useAdminDeleteMessage } from "@workspace/api-client-react";
+import { useState } from "react";
+import {
+  useGetMe,
+  useAdminGetStats,
+  useAdminGetUsers,
+  useAdminGetGroups,
+  useAdminGetMessages,
+  useAdminGetReports,
+  useAdminGetLogs,
+  useAdminDeleteUser,
+  useAdminBanUser,
+  useAdminChangeRole,
+  useAdminDeleteGroup,
+  useAdminDeleteMessage,
+  useAdminResolveReport,
+} from "@workspace/api-client-react";
 import { useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
-import { ShieldAlert, Users, BookOpen, MessageSquare, Activity, Trash2 } from "lucide-react";
+import {
+  ShieldAlert, Users, BookOpen, MessageSquare, Activity,
+  Trash2, Ban, UserCheck, Shield, ClipboardList, ScrollText,
+  Search, Flag, AlertTriangle, CheckCircle2, RefreshCw,
+} from "lucide-react";
 import { useEffect } from "react";
 
 export default function Admin() {
@@ -16,132 +37,345 @@ export default function Admin() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: user, isLoading: isUserLoading } = useGetMe();
-  const isAdmin = (user as any)?.role === "admin";
+  const [userSearch, setUserSearch] = useState("");
+  const [reportFilter, setReportFilter] = useState<"all" | "pending" | "resolved">("all");
+  const [msgFlaggedOnly, setMsgFlaggedOnly] = useState(false);
+
+  const { data: me, isLoading: isMeLoading } = useGetMe();
+  const isAdmin = (me as any)?.role === "admin";
 
   useEffect(() => {
-    if (!isUserLoading && (!user || !isAdmin)) {
+    if (!isMeLoading && (!me || !isAdmin)) {
       setLocation("/dashboard");
     }
-  }, [user, isAdmin, isUserLoading, setLocation]);
+  }, [me, isAdmin, isMeLoading, setLocation]);
 
-  const { data: stats } = useAdminGetStats({ query: { enabled: isAdmin } });
-  const { data: users } = useAdminGetUsers({ query: { enabled: isAdmin } });
-  const { data: groups } = useAdminGetGroups({ query: { enabled: isAdmin } });
-  
+  const { data: stats, refetch: refetchStats } = useAdminGetStats({ query: { enabled: isAdmin } });
+  const { data: users, refetch: refetchUsers } = useAdminGetUsers({ query: { enabled: isAdmin } });
+  const { data: groups, refetch: refetchGroups } = useAdminGetGroups({ query: { enabled: isAdmin } });
+  const { data: messages, refetch: refetchMessages } = useAdminGetMessages(
+    { flagged: msgFlaggedOnly || undefined },
+    { query: { enabled: isAdmin } }
+  );
+  const { data: reports, refetch: refetchReports } = useAdminGetReports(
+    { status: reportFilter === "all" ? undefined : reportFilter as any },
+    { query: { enabled: isAdmin } }
+  );
+  const { data: logs, refetch: refetchLogs } = useAdminGetLogs({}, { query: { enabled: isAdmin } });
+
   const deleteUserMutation = useAdminDeleteUser();
+  const banUserMutation = useAdminBanUser();
+  const changeRoleMutation = useAdminChangeRole();
+  const deleteGroupMutation = useAdminDeleteGroup();
+  const deleteMessageMutation = useAdminDeleteMessage();
+  const resolveReportMutation = useAdminResolveReport();
 
-  const handleDeleteUser = async (id: number) => {
-    if (!confirm("Are you sure you want to delete this user? This cannot be undone.")) return;
-    try {
-      await deleteUserMutation.mutateAsync({ id });
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/stats"] });
-      toast({ title: "User deleted" });
-    } catch (error) {
-      toast({ variant: "destructive", title: "Failed to delete user" });
-    }
+  const invalidate = (keys: string[]) => {
+    keys.forEach(k => queryClient.invalidateQueries({ queryKey: [k] }));
   };
 
-  if (isUserLoading) return <div className="p-8">Verifying access...</div>;
-  if (!isAdmin) return null; // Let the effect redirect
+  const handleDeleteUser = async (id: number) => {
+    if (!confirm("Delete this user permanently? This cannot be undone.")) return;
+    try {
+      await deleteUserMutation.mutateAsync({ id });
+      invalidate(["/api/admin/users", "/api/admin/stats"]);
+      toast({ title: "User deleted" });
+    } catch { toast({ variant: "destructive", title: "Failed to delete user" }); }
+  };
+
+  const handleBanUser = async (id: number, banned: boolean) => {
+    try {
+      await banUserMutation.mutateAsync({ id, data: { banned } });
+      invalidate(["/api/admin/users", "/api/admin/stats", "/api/admin/logs"]);
+      toast({ title: banned ? "User banned" : "User unbanned" });
+    } catch { toast({ variant: "destructive", title: "Failed to update ban status" }); }
+  };
+
+  const handleChangeRole = async (id: number, role: "student" | "admin") => {
+    try {
+      await changeRoleMutation.mutateAsync({ id, data: { role } });
+      invalidate(["/api/admin/users", "/api/admin/logs"]);
+      toast({ title: `Role changed to ${role}` });
+    } catch { toast({ variant: "destructive", title: "Failed to change role" }); }
+  };
+
+  const handleDeleteGroup = async (id: number) => {
+    if (!confirm("Delete this group? This cannot be undone.")) return;
+    try {
+      await deleteGroupMutation.mutateAsync({ id });
+      invalidate(["/api/admin/groups", "/api/admin/stats", "/api/admin/logs"]);
+      toast({ title: "Group deleted" });
+    } catch { toast({ variant: "destructive", title: "Failed to delete group" }); }
+  };
+
+  const handleDeleteMessage = async (id: number) => {
+    try {
+      await deleteMessageMutation.mutateAsync({ id });
+      invalidate(["/api/admin/messages", "/api/admin/stats", "/api/admin/logs"]);
+      toast({ title: "Message deleted" });
+    } catch { toast({ variant: "destructive", title: "Failed to delete message" }); }
+  };
+
+  const handleResolveReport = async (id: number) => {
+    try {
+      await resolveReportMutation.mutateAsync({ id });
+      invalidate(["/api/admin/reports", "/api/admin/stats", "/api/admin/logs"]);
+      toast({ title: "Report resolved" });
+    } catch { toast({ variant: "destructive", title: "Failed to resolve report" }); }
+  };
+
+  const filteredUsers = (users as any[])?.filter((u: any) =>
+    !userSearch ||
+    u.name.toLowerCase().includes(userSearch.toLowerCase()) ||
+    u.email.toLowerCase().includes(userSearch.toLowerCase())
+  ) ?? [];
+
+  if (isMeLoading) return (
+    <div className="flex items-center justify-center min-h-[60vh]">
+      <div className="text-muted-foreground">Verifying admin access...</div>
+    </div>
+  );
+  if (!isAdmin) return null;
 
   return (
-    <div className="container mx-auto p-4 md:p-8">
-      <div className="flex items-center gap-3 mb-8">
-        <div className="p-3 bg-destructive/10 text-destructive rounded-xl">
-          <ShieldAlert className="h-8 w-8" />
+    <div className="container mx-auto p-4 md:p-8 max-w-7xl">
+      <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center gap-3">
+          <div className="p-3 bg-destructive/10 text-destructive rounded-xl">
+            <ShieldAlert className="h-8 w-8" />
+          </div>
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Admin Console</h1>
+            <p className="text-muted-foreground">Platform management and analytics</p>
+          </div>
         </div>
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Admin Console</h1>
-          <p className="text-muted-foreground">Platform management and analytics</p>
-        </div>
+        <Button variant="outline" size="sm" onClick={() => { refetchStats(); refetchUsers(); refetchGroups(); refetchMessages(); refetchReports(); refetchLogs(); }}>
+          <RefreshCw className="h-4 w-4 mr-2" />
+          Refresh All
+        </Button>
       </div>
 
       {stats && (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-8">
+        <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-6 mb-8">
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Total Users</CardTitle>
+            <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+              <CardTitle className="text-xs font-medium">Total Users</CardTitle>
               <Users className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{stats.totalUsers}</div>
-              <p className="text-xs text-muted-foreground mt-1">+{stats.newUsersThisWeek} this week</p>
+              <p className="text-xs text-muted-foreground">+{stats.newUsersThisWeek} this week</p>
             </CardContent>
           </Card>
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Total Groups</CardTitle>
+            <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+              <CardTitle className="text-xs font-medium">Total Groups</CardTitle>
               <BookOpen className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{stats.totalGroups}</div>
-              <p className="text-xs text-muted-foreground mt-1">+{stats.newGroupsThisWeek} this week</p>
+              <p className="text-xs text-muted-foreground">+{stats.newGroupsThisWeek} this week</p>
             </CardContent>
           </Card>
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Active Groups Today</CardTitle>
+            <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+              <CardTitle className="text-xs font-medium">Active Today</CardTitle>
               <Activity className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{stats.activeGroupsToday}</div>
-              <p className="text-xs text-muted-foreground mt-1">Sessions happening now</p>
+              <p className="text-xs text-muted-foreground">Active groups</p>
             </CardContent>
           </Card>
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Total Messages</CardTitle>
+            <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+              <CardTitle className="text-xs font-medium">Messages</CardTitle>
               <MessageSquare className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{stats.totalMessages}</div>
-              <p className="text-xs text-muted-foreground mt-1">Across all groups</p>
+              <p className="text-xs text-muted-foreground">Total sent</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+              <CardTitle className="text-xs font-medium">Reports</CardTitle>
+              <AlertTriangle className="h-4 w-4 text-amber-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.totalReports}</div>
+              <p className="text-xs text-amber-600 font-medium">{stats.pendingReports} pending</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+              <CardTitle className="text-xs font-medium">Banned Users</CardTitle>
+              <Ban className="h-4 w-4 text-destructive" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.bannedUsers}</div>
+              <p className="text-xs text-muted-foreground">Accounts banned</p>
             </CardContent>
           </Card>
         </div>
       )}
 
       <Tabs defaultValue="users" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="users">Users Management</TabsTrigger>
-          <TabsTrigger value="groups">Groups Management</TabsTrigger>
+        <TabsList className="flex-wrap h-auto">
+          <TabsTrigger value="users" className="gap-2"><Users className="h-4 w-4" />Users</TabsTrigger>
+          <TabsTrigger value="groups" className="gap-2"><BookOpen className="h-4 w-4" />Groups</TabsTrigger>
+          <TabsTrigger value="messages" className="gap-2">
+            <MessageSquare className="h-4 w-4" />Messages
+          </TabsTrigger>
+          <TabsTrigger value="reports" className="gap-2">
+            <ClipboardList className="h-4 w-4" />
+            Reports
+            {(stats?.pendingReports ?? 0) > 0 && (
+              <Badge variant="destructive" className="ml-1 h-5 px-1.5 text-xs">{stats!.pendingReports}</Badge>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="logs" className="gap-2"><ScrollText className="h-4 w-4" />Audit Logs</TabsTrigger>
         </TabsList>
-        
+
+        {/* ─── USERS ─── */}
         <TabsContent value="users">
           <Card>
-            <CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>Registered Users</CardTitle>
+              <div className="relative w-64">
+                <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search by name or email..."
+                  className="pl-9 h-9"
+                  value={userSearch}
+                  onChange={e => setUserSearch(e.target.value)}
+                />
+              </div>
             </CardHeader>
             <CardContent>
-              <div className="rounded-md border">
+              <div className="rounded-md border overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>ID</TableHead>
+                      <TableHead className="w-10">ID</TableHead>
                       <TableHead>Name</TableHead>
                       <TableHead>Email</TableHead>
                       <TableHead>Faculty</TableHead>
                       <TableHead>Joined</TableHead>
+                      <TableHead>Status</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {users?.map((u: any) => (
-                      <TableRow key={u.id}>
-                        <TableCell className="font-medium">{u.id}</TableCell>
-                        <TableCell>{u.name} {u.role === "admin" && <Badge variant="secondary" className="ml-2">Admin</Badge>}</TableCell>
-                        <TableCell>{u.email}</TableCell>
-                        <TableCell>{u.faculty}</TableCell>
-                        <TableCell>{format(new Date(u.createdAt), "MMM d, yyyy")}</TableCell>
+                    {filteredUsers.map((u: any) => (
+                      <TableRow key={u.id} className={u.isBanned ? "opacity-60 bg-muted/30" : ""}>
+                        <TableCell className="font-mono text-xs text-muted-foreground">{u.id}</TableCell>
+                        <TableCell>
+                          <div className="font-medium">{u.name}</div>
+                          {u.role === "admin" && (
+                            <Badge variant="secondary" className="mt-0.5 text-xs gap-1">
+                              <Shield className="h-3 w-3" />Admin
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-sm">{u.email}</TableCell>
+                        <TableCell className="text-sm">{u.faculty}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {u.createdAt ? format(new Date(u.createdAt), "MMM d, yyyy") : "—"}
+                        </TableCell>
+                        <TableCell>
+                          {u.isBanned
+                            ? <Badge variant="destructive" className="text-xs">Banned</Badge>
+                            : <Badge variant="outline" className="text-xs text-green-600 border-green-200">Active</Badge>}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center justify-end gap-1">
+                            <Button
+                              variant="ghost" size="sm"
+                              title={u.isBanned ? "Unban user" : "Ban user"}
+                              className={u.isBanned ? "text-green-600 hover:bg-green-50" : "text-amber-600 hover:bg-amber-50"}
+                              onClick={() => handleBanUser(u.id, !u.isBanned)}
+                              disabled={u.id === (me as any)?.id}
+                            >
+                              {u.isBanned ? <UserCheck className="h-4 w-4" /> : <Ban className="h-4 w-4" />}
+                            </Button>
+                            <Select
+                              value={u.role ?? "student"}
+                              onValueChange={(v) => handleChangeRole(u.id, v as "student" | "admin")}
+                              disabled={u.id === (me as any)?.id}
+                            >
+                              <SelectTrigger className="h-8 w-28 text-xs">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="student">Student</SelectItem>
+                                <SelectItem value="admin">Admin</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <Button
+                              variant="ghost" size="sm"
+                              className="text-destructive hover:bg-destructive/10"
+                              onClick={() => handleDeleteUser(u.id)}
+                              disabled={u.id === (me as any)?.id}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                    {filteredUsers.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={7} className="text-center text-muted-foreground py-8">No users found</TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ─── GROUPS ─── */}
+        <TabsContent value="groups">
+          <Card>
+            <CardHeader>
+              <CardTitle>Platform Groups ({(groups as any[])?.length ?? 0})</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="rounded-md border overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-10">ID</TableHead>
+                      <TableHead>Title</TableHead>
+                      <TableHead>Subject</TableHead>
+                      <TableHead>Creator</TableHead>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Members</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {(groups as any[])?.map((g: any) => (
+                      <TableRow key={g.id}>
+                        <TableCell className="font-mono text-xs text-muted-foreground">{g.id}</TableCell>
+                        <TableCell className="font-medium max-w-[180px] truncate">{g.title}</TableCell>
+                        <TableCell><Badge variant="outline">{g.subject}</Badge></TableCell>
+                        <TableCell className="text-sm text-muted-foreground">#{g.createdBy}</TableCell>
+                        <TableCell className="text-sm">{format(new Date(g.dateTime), "MMM d, yyyy")}</TableCell>
+                        <TableCell>
+                          <Badge variant={g.type === "online" ? "default" : "secondary"} className="capitalize text-xs">
+                            {g.type}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-sm">{g.memberCount}/{g.maxMembers}</TableCell>
                         <TableCell className="text-right">
-                          <Button 
-                            variant="ghost" 
-                            size="sm" 
-                            className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                            onClick={() => handleDeleteUser(u.id)}
-                            disabled={u.id === user?.id} // Don't delete yourself
+                          <Button
+                            variant="ghost" size="sm"
+                            className="text-destructive hover:bg-destructive/10"
+                            onClick={() => handleDeleteGroup(g.id)}
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
@@ -154,36 +388,203 @@ export default function Admin() {
             </CardContent>
           </Card>
         </TabsContent>
-        
-        <TabsContent value="groups">
+
+        {/* ─── MESSAGES ─── */}
+        <TabsContent value="messages">
           <Card>
-            <CardHeader>
-              <CardTitle>Platform Groups</CardTitle>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle>Message Moderation</CardTitle>
+              <Button
+                variant={msgFlaggedOnly ? "default" : "outline"}
+                size="sm"
+                className="gap-2"
+                onClick={() => setMsgFlaggedOnly(v => !v)}
+              >
+                <Flag className="h-4 w-4" />
+                {msgFlaggedOnly ? "Showing flagged only" : "Show flagged only"}
+              </Button>
             </CardHeader>
             <CardContent>
-              <div className="rounded-md border">
+              <div className="rounded-md border overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>ID</TableHead>
-                      <TableHead>Title</TableHead>
-                      <TableHead>Subject</TableHead>
-                      <TableHead>Creator ID</TableHead>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Type</TableHead>
+                      <TableHead className="w-10">ID</TableHead>
+                      <TableHead>Content</TableHead>
+                      <TableHead>Group</TableHead>
+                      <TableHead>Sender</TableHead>
+                      <TableHead>Sent</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {groups?.map((g: any) => (
-                      <TableRow key={g.id}>
-                        <TableCell className="font-medium">{g.id}</TableCell>
-                        <TableCell>{g.title}</TableCell>
-                        <TableCell><Badge variant="outline">{g.subject}</Badge></TableCell>
-                        <TableCell>{g.createdBy}</TableCell>
-                        <TableCell>{format(new Date(g.dateTime), "MMM d, yyyy")}</TableCell>
-                        <TableCell className="capitalize">{g.type}</TableCell>
+                    {(messages as any[])?.map((m: any) => (
+                      <TableRow key={m.id} className={m.isFlagged ? "bg-amber-50/50" : ""}>
+                        <TableCell className="font-mono text-xs text-muted-foreground">{m.id}</TableCell>
+                        <TableCell className="max-w-[220px]">
+                          <p className="truncate text-sm">{m.content}</p>
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground max-w-[120px] truncate">{m.groupTitle}</TableCell>
+                        <TableCell className="text-sm">{m.user?.name ?? `#${m.userId}`}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                          {format(new Date(m.createdAt), "MMM d, HH:mm")}
+                        </TableCell>
+                        <TableCell>
+                          {m.isFlagged
+                            ? <Badge variant="destructive" className="gap-1 text-xs"><Flag className="h-3 w-3" />Flagged</Badge>
+                            : <Badge variant="outline" className="text-xs text-green-600 border-green-200">Clean</Badge>}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            variant="ghost" size="sm"
+                            className="text-destructive hover:bg-destructive/10"
+                            onClick={() => handleDeleteMessage(m.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
                       </TableRow>
                     ))}
+                    {!(messages as any[])?.length && (
+                      <TableRow>
+                        <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                          {msgFlaggedOnly ? "No flagged messages" : "No messages"}
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ─── REPORTS ─── */}
+        <TabsContent value="reports">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle>User Reports</CardTitle>
+              <Select value={reportFilter} onValueChange={v => setReportFilter(v as any)}>
+                <SelectTrigger className="w-36 h-9">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Reports</SelectItem>
+                  <SelectItem value="pending">Pending</SelectItem>
+                  <SelectItem value="resolved">Resolved</SelectItem>
+                </SelectContent>
+              </Select>
+            </CardHeader>
+            <CardContent>
+              <div className="rounded-md border overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-10">ID</TableHead>
+                      <TableHead>Reporter</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Target ID</TableHead>
+                      <TableHead>Reason</TableHead>
+                      <TableHead>Submitted</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {(reports as any[])?.map((r: any) => (
+                      <TableRow key={r.id}>
+                        <TableCell className="font-mono text-xs text-muted-foreground">{r.id}</TableCell>
+                        <TableCell className="text-sm">{r.reporter?.name ?? `#${r.reporterId}`}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="capitalize text-xs">{r.type}</Badge>
+                        </TableCell>
+                        <TableCell className="font-mono text-xs">#{r.targetId}</TableCell>
+                        <TableCell className="max-w-[200px]">
+                          <p className="truncate text-sm">{r.reason}</p>
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                          {format(new Date(r.createdAt), "MMM d, yyyy")}
+                        </TableCell>
+                        <TableCell>
+                          {r.status === "pending"
+                            ? <Badge variant="outline" className="text-xs text-amber-600 border-amber-200 gap-1"><AlertTriangle className="h-3 w-3" />Pending</Badge>
+                            : <Badge variant="outline" className="text-xs text-green-600 border-green-200 gap-1"><CheckCircle2 className="h-3 w-3" />Resolved</Badge>}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {r.status === "pending" && (
+                            <Button
+                              variant="outline" size="sm"
+                              className="text-green-600 border-green-200 hover:bg-green-50 gap-1"
+                              onClick={() => handleResolveReport(r.id)}
+                            >
+                              <CheckCircle2 className="h-4 w-4" />
+                              Resolve
+                            </Button>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                    {!(reports as any[])?.length && (
+                      <TableRow>
+                        <TableCell colSpan={8} className="text-center text-muted-foreground py-8">No reports found</TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ─── AUDIT LOGS ─── */}
+        <TabsContent value="logs">
+          <Card>
+            <CardHeader>
+              <CardTitle>Audit Log</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="rounded-md border overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-10">ID</TableHead>
+                      <TableHead>Admin</TableHead>
+                      <TableHead>Action</TableHead>
+                      <TableHead>Target Type</TableHead>
+                      <TableHead>Target ID</TableHead>
+                      <TableHead>Timestamp</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {(logs as any[])?.map((l: any) => (
+                      <TableRow key={l.id}>
+                        <TableCell className="font-mono text-xs text-muted-foreground">{l.id}</TableCell>
+                        <TableCell className="text-sm font-medium">{l.admin?.name ?? `#${l.adminId}`}</TableCell>
+                        <TableCell>
+                          <Badge
+                            variant={l.action.startsWith("DELETE") || l.action.startsWith("BAN") ? "destructive" : "secondary"}
+                            className="text-xs font-mono"
+                          >
+                            {l.action}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="capitalize text-xs">{l.targetType}</Badge>
+                        </TableCell>
+                        <TableCell className="font-mono text-xs">#{l.targetId}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                          {format(new Date(l.createdAt), "MMM d, yyyy HH:mm:ss")}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                    {!(logs as any[])?.length && (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                          No admin actions recorded yet
+                        </TableCell>
+                      </TableRow>
+                    )}
                   </TableBody>
                 </Table>
               </div>

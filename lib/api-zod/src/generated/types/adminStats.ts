@@ -13,4 +13,7 @@ export interface AdminStats {
   activeGroupsToday: number;
   newUsersThisWeek: number;
   newGroupsThisWeek: number;
+  totalReports: number;
+  pendingReports: number;
+  bannedUsers: number;
 }

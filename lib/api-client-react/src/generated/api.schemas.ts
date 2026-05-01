@@ -40,12 +40,8 @@ export interface User {
   faculty: string;
   academicYear: number;
   subjectsOfInterest?: string[];
+  isBanned: boolean;
   createdAt?: string;
-}
-
-export interface AuthResponse {
-  user: User;
-  token: string;
 }
 
 export type UserWithRoleRole =
@@ -59,6 +55,11 @@ export const UserWithRoleRole = {
 export type UserWithRole = User & {
   role: UserWithRoleRole;
 };
+
+export interface AuthResponse {
+  user: UserWithRole;
+  token: string;
+}
 
 export interface UpdateProfileBody {
   name?: string;
@@ -120,12 +121,87 @@ export interface Message {
   groupId: number;
   userId: number;
   content: string;
+  isFlagged: boolean;
   createdAt: string;
   user?: User;
 }
 
+export type AdminMessage = Message & {
+  groupTitle: string;
+};
+
 export interface SendMessageBody {
   content: string;
+}
+
+export type ReportType = (typeof ReportType)[keyof typeof ReportType];
+
+export const ReportType = {
+  user: "user",
+  group: "group",
+  message: "message",
+} as const;
+
+export type ReportStatus = (typeof ReportStatus)[keyof typeof ReportStatus];
+
+export const ReportStatus = {
+  pending: "pending",
+  resolved: "resolved",
+} as const;
+
+export interface Report {
+  id: number;
+  reporterId: number;
+  type: ReportType;
+  targetId: number;
+  reason: string;
+  status: ReportStatus;
+  createdAt: string;
+}
+
+export type ReportWithReporter = Report & {
+  reporter?: User;
+};
+
+export type CreateReportBodyType =
+  (typeof CreateReportBodyType)[keyof typeof CreateReportBodyType];
+
+export const CreateReportBodyType = {
+  user: "user",
+  group: "group",
+  message: "message",
+} as const;
+
+export interface CreateReportBody {
+  type: CreateReportBodyType;
+  targetId: number;
+  reason: string;
+}
+
+export interface BanUserBody {
+  banned: boolean;
+}
+
+export type ChangeRoleBodyRole =
+  (typeof ChangeRoleBodyRole)[keyof typeof ChangeRoleBodyRole];
+
+export const ChangeRoleBodyRole = {
+  student: "student",
+  admin: "admin",
+} as const;
+
+export interface ChangeRoleBody {
+  role: ChangeRoleBodyRole;
+}
+
+export interface AdminLogEntry {
+  id: number;
+  adminId: number;
+  action: string;
+  targetType: string;
+  targetId: number;
+  createdAt: string;
+  admin?: User;
 }
 
 export type DashboardSummarySubjectBreakdownItem = {
@@ -150,6 +226,9 @@ export interface AdminStats {
   activeGroupsToday: number;
   newUsersThisWeek: number;
   newGroupsThisWeek: number;
+  totalReports: number;
+  pendingReports: number;
+  bannedUsers: number;
 }
 
 export type GetGroupsParams = {
@@ -169,4 +248,28 @@ export const GetGroupsType = {
 export type GetMessagesParams = {
   limit?: number;
   before?: number;
+};
+
+export type AdminGetMessagesParams = {
+  groupId?: number;
+  flagged?: boolean;
+  limit?: number;
+  offset?: number;
+};
+
+export type AdminGetReportsParams = {
+  status?: AdminGetReportsStatus;
+};
+
+export type AdminGetReportsStatus =
+  (typeof AdminGetReportsStatus)[keyof typeof AdminGetReportsStatus];
+
+export const AdminGetReportsStatus = {
+  pending: "pending",
+  resolved: "resolved",
+} as const;
+
+export type AdminGetLogsParams = {
+  limit?: number;
+  offset?: number;
 };

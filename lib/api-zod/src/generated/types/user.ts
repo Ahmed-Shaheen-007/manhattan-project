@@ -13,5 +13,6 @@ export interface User {
   faculty: string;
   academicYear: number;
   subjectsOfInterest?: string[];
+  isBanned: boolean;
   createdAt?: Date;
 }
