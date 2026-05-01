@@ -3,20 +3,32 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Study Group Finder API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: auth
+    description: Authentication operations
+  - name: users
+    description: User operations
+  - name: groups
+    description: Study group operations
+  - name: messages
+    description: Chat message operations
+  - name: admin
+    description: Admin operations
+  - name: dashboard
+    description: Dashboard summary operations
+
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +36,495 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /auth/register:
+    post:
+      operationId: register
+      tags: [auth]
+      summary: Register a new student
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterBody"
+      responses:
+        "201":
+          description: Registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "409":
+          description: Email already in use
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: Login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginBody"
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "401":
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      summary: Logout
+      responses:
+        "200":
+          description: Logged out
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /auth/me:
+    get:
+      operationId: getMe
+      tags: [auth]
+      summary: Get current authenticated user
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /users/{id}:
+    get:
+      operationId: getUser
+      tags: [users]
+      summary: Get a user profile
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: User profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "404":
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /users/{id}/profile:
+    patch:
+      operationId: updateProfile
+      tags: [users]
+      summary: Update user profile
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateProfileBody"
+      responses:
+        "200":
+          description: Profile updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /users/{id}/groups:
+    get:
+      operationId: getUserGroups
+      tags: [users]
+      summary: Get groups a user is a member of
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of groups
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GroupWithMemberCount"
+
+  /groups:
+    get:
+      operationId: getGroups
+      tags: [groups]
+      summary: List all study groups
+      parameters:
+        - name: subject
+          in: query
+          schema:
+            type: string
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [online, offline]
+        - name: date
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: search
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of groups
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GroupWithMemberCount"
+    post:
+      operationId: createGroup
+      tags: [groups]
+      summary: Create a new study group
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateGroupBody"
+      responses:
+        "201":
+          description: Group created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Group"
+
+  /groups/{id}:
+    get:
+      operationId: getGroup
+      tags: [groups]
+      summary: Get a study group
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Group details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroupDetail"
+        "404":
+          description: Group not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteGroup
+      tags: [groups]
+      summary: Delete a group (admin or creator only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Group deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /groups/{id}/join:
+    post:
+      operationId: joinGroup
+      tags: [groups]
+      summary: Join a study group
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Joined group
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "400":
+          description: Already a member or group full
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /groups/{id}/leave:
+    post:
+      operationId: leaveGroup
+      tags: [groups]
+      summary: Leave a study group
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Left group
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /groups/{id}/members:
+    get:
+      operationId: getGroupMembers
+      tags: [groups]
+      summary: Get members of a study group
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of members
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/User"
+
+  /groups/{id}/messages:
+    get:
+      operationId: getMessages
+      tags: [messages]
+      summary: Get messages for a group
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: before
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of messages
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Message"
+    post:
+      operationId: sendMessage
+      tags: [messages]
+      summary: Send a message to a group
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendMessageBody"
+      responses:
+        "201":
+          description: Message sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+
+  /dashboard/summary:
+    get:
+      operationId: getDashboardSummary
+      tags: [dashboard]
+      summary: Get dashboard summary stats
+      responses:
+        "200":
+          description: Summary stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardSummary"
+
+  /dashboard/upcoming:
+    get:
+      operationId: getUpcomingGroups
+      tags: [dashboard]
+      summary: Get upcoming study groups for the current user
+      responses:
+        "200":
+          description: Upcoming groups
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GroupWithMemberCount"
+
+  /dashboard/popular:
+    get:
+      operationId: getPopularGroups
+      tags: [dashboard]
+      summary: Get most popular/active groups
+      responses:
+        "200":
+          description: Popular groups
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GroupWithMemberCount"
+
+  /admin/users:
+    get:
+      operationId: adminGetUsers
+      tags: [admin]
+      summary: Get all users (admin only)
+      responses:
+        "200":
+          description: All users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/UserWithRole"
+
+  /admin/users/{id}:
+    delete:
+      operationId: adminDeleteUser
+      tags: [admin]
+      summary: Delete a user (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: User deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /admin/groups:
+    get:
+      operationId: adminGetGroups
+      tags: [admin]
+      summary: Get all groups (admin only)
+      responses:
+        "200":
+          description: All groups
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GroupWithMemberCount"
+
+  /admin/messages/{id}:
+    delete:
+      operationId: adminDeleteMessage
+      tags: [admin]
+      summary: Delete a message (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Message deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+
+  /admin/stats:
+    get:
+      operationId: adminGetStats
+      tags: [admin]
+      summary: Get admin platform stats
+      responses:
+        "200":
+          description: Platform stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminStats"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +535,302 @@ components:
       required:
         - status
 
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+      required:
+        - success
+
+    RegisterBody:
+      type: object
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 6
+        faculty:
+          type: string
+        academicYear:
+          type: integer
+        subjectsOfInterest:
+          type: array
+          items:
+            type: string
+      required:
+        - name
+        - email
+        - password
+        - faculty
+        - academicYear
+
+    LoginBody:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+      required:
+        - email
+        - password
+
+    AuthResponse:
+      type: object
+      properties:
+        user:
+          $ref: "#/components/schemas/User"
+        token:
+          type: string
+      required:
+        - user
+        - token
+
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        email:
+          type: string
+        faculty:
+          type: string
+        academicYear:
+          type: integer
+        subjectsOfInterest:
+          type: array
+          items:
+            type: string
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - email
+        - faculty
+        - academicYear
+
+    UserWithRole:
+      allOf:
+        - $ref: "#/components/schemas/User"
+        - type: object
+          properties:
+            role:
+              type: string
+              enum: [student, admin]
+          required:
+            - role
+
+    UpdateProfileBody:
+      type: object
+      properties:
+        name:
+          type: string
+        faculty:
+          type: string
+        academicYear:
+          type: integer
+        subjectsOfInterest:
+          type: array
+          items:
+            type: string
+
+    Group:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        subject:
+          type: string
+        description:
+          type: string
+        type:
+          type: string
+          enum: [online, offline]
+        location:
+          type: string
+          nullable: true
+        dateTime:
+          type: string
+          format: date-time
+        maxMembers:
+          type: integer
+        createdBy:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - title
+        - subject
+        - description
+        - type
+        - dateTime
+        - maxMembers
+        - createdBy
+
+    GroupWithMemberCount:
+      allOf:
+        - $ref: "#/components/schemas/Group"
+        - type: object
+          properties:
+            memberCount:
+              type: integer
+            creator:
+              $ref: "#/components/schemas/User"
+            isMember:
+              type: boolean
+          required:
+            - memberCount
+
+    GroupDetail:
+      allOf:
+        - $ref: "#/components/schemas/GroupWithMemberCount"
+        - type: object
+          properties:
+            members:
+              type: array
+              items:
+                $ref: "#/components/schemas/User"
+          required:
+            - members
+
+    CreateGroupBody:
+      type: object
+      properties:
+        title:
+          type: string
+        subject:
+          type: string
+        description:
+          type: string
+        type:
+          type: string
+          enum: [online, offline]
+        location:
+          type: string
+          nullable: true
+        dateTime:
+          type: string
+          format: date-time
+        maxMembers:
+          type: integer
+      required:
+        - title
+        - subject
+        - description
+        - type
+        - dateTime
+        - maxMembers
+
+    Message:
+      type: object
+      properties:
+        id:
+          type: integer
+        groupId:
+          type: integer
+        userId:
+          type: integer
+        content:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        user:
+          $ref: "#/components/schemas/User"
+      required:
+        - id
+        - groupId
+        - userId
+        - content
+        - createdAt
+
+    SendMessageBody:
+      type: object
+      properties:
+        content:
+          type: string
+      required:
+        - content
+
+    DashboardSummary:
+      type: object
+      properties:
+        totalGroups:
+          type: integer
+        totalMembers:
+          type: integer
+        onlineGroups:
+          type: integer
+        offlineGroups:
+          type: integer
+        myGroupsCount:
+          type: integer
+        upcomingCount:
+          type: integer
+        subjectBreakdown:
+          type: array
+          items:
+            type: object
+            properties:
+              subject:
+                type: string
+              count:
+                type: integer
+            required:
+              - subject
+              - count
+      required:
+        - totalGroups
+        - totalMembers
+        - onlineGroups
+        - offlineGroups
+        - myGroupsCount
+        - upcomingCount
+        - subjectBreakdown
+
+    AdminStats:
+      type: object
+      properties:
+        totalUsers:
+          type: integer
+        totalGroups:
+          type: integer
+        totalMessages:
+          type: integer
+        activeGroupsToday:
+          type: integer
+        newUsersThisWeek:
+          type: integer
+        newGroupsThisWeek:
+          type: integer
+      required:
+        - totalUsers
+        - totalGroups
+        - totalMessages
+        - activeGroupsToday
+        - newUsersThisWeek
+        - newGroupsThisWeek

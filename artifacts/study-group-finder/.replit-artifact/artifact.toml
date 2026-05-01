@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "Study Group Finder"
+version = "1.0.0"
+id = "artifacts/study-group-finder"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 18767
+
+[services.development]
+run = "pnpm --filter @workspace/study-group-finder run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/study-group-finder", "run", "build" ]
+publicDir = "artifacts/study-group-finder/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "18767"
+BASE_PATH = "/"
