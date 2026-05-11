@@ -44,6 +44,7 @@ import type {
   SendMessageBody,
   SuccessResponse,
   UpdateProfileBody,
+  UpdateReportStatusBody,
   User,
   UserWithRole,
 } from "./api.schemas";
@@ -2572,6 +2573,181 @@ export function useAdminGetReports<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary Get a single report (admin only)
+ */
+export const getAdminGetReportUrl = (id: number) => {
+  return `/api/admin/reports/${id}`;
+};
+
+export const adminGetReport = async (
+  id: number,
+  options?: RequestInit,
+): Promise<ReportWithReporter> => {
+  return customFetch<ReportWithReporter>(getAdminGetReportUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getAdminGetReportQueryKey = (id: number) => {
+  return [`/api/admin/reports/${id}`] as const;
+};
+
+export const getAdminGetReportQueryOptions = <
+  TData = Awaited<ReturnType<typeof adminGetReport>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof adminGetReport>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getAdminGetReportQueryKey(id);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof adminGetReport>>> = ({
+    signal,
+  }) => adminGetReport(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof adminGetReport>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type AdminGetReportQueryResult = NonNullable<
+  Awaited<ReturnType<typeof adminGetReport>>
+>;
+export type AdminGetReportQueryError = ErrorType<ErrorResponse>;
+
+/**
+ * @summary Get a single report (admin only)
+ */
+
+export function useAdminGetReport<
+  TData = Awaited<ReturnType<typeof adminGetReport>>,
+  TError = ErrorType<ErrorResponse>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof adminGetReport>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getAdminGetReportQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Update report status (admin only)
+ */
+export const getAdminUpdateReportStatusUrl = (id: number) => {
+  return `/api/admin/reports/${id}/status`;
+};
+
+export const adminUpdateReportStatus = async (
+  id: number,
+  updateReportStatusBody: UpdateReportStatusBody,
+  options?: RequestInit,
+): Promise<SuccessResponse> => {
+  return customFetch<SuccessResponse>(getAdminUpdateReportStatusUrl(id), {
+    ...options,
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(updateReportStatusBody),
+  });
+};
+
+export const getAdminUpdateReportStatusMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminUpdateReportStatus>>,
+    TError,
+    { id: number; data: BodyType<UpdateReportStatusBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof adminUpdateReportStatus>>,
+  TError,
+  { id: number; data: BodyType<UpdateReportStatusBody> },
+  TContext
+> => {
+  const mutationKey = ["adminUpdateReportStatus"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof adminUpdateReportStatus>>,
+    { id: number; data: BodyType<UpdateReportStatusBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return adminUpdateReportStatus(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AdminUpdateReportStatusMutationResult = NonNullable<
+  Awaited<ReturnType<typeof adminUpdateReportStatus>>
+>;
+export type AdminUpdateReportStatusMutationBody =
+  BodyType<UpdateReportStatusBody>;
+export type AdminUpdateReportStatusMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Update report status (admin only)
+ */
+export const useAdminUpdateReportStatus = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof adminUpdateReportStatus>>,
+    TError,
+    { id: number; data: BodyType<UpdateReportStatusBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof adminUpdateReportStatus>>,
+  TError,
+  { id: number; data: BodyType<UpdateReportStatusBody> },
+  TContext
+> => {
+  return useMutation(getAdminUpdateReportStatusMutationOptions(options));
+};
 
 /**
  * @summary Resolve a report (admin only)

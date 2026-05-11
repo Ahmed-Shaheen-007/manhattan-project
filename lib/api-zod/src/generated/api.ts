@@ -386,7 +386,15 @@ export const SendMessageBody = zod.object({
 export const CreateReportBody = zod.object({
   type: zod.enum(["user", "group", "message"]),
   targetId: zod.number(),
-  reason: zod.string(),
+  reason: zod.enum([
+    "spam",
+    "abuse",
+    "inappropriate_content",
+    "harassment",
+    "misinformation",
+    "other",
+  ]),
+  description: zod.string().nullish(),
 });
 
 /**
@@ -651,7 +659,7 @@ export const AdminDeleteMessageResponse = zod.object({
  * @summary Get all reports (admin only)
  */
 export const AdminGetReportsQueryParams = zod.object({
-  status: zod.enum(["pending", "resolved"]).optional(),
+  status: zod.enum(["pending", "reviewed", "resolved", "rejected"]).optional(),
 });
 
 export const AdminGetReportsResponseItem = zod
@@ -660,8 +668,16 @@ export const AdminGetReportsResponseItem = zod
     reporterId: zod.number(),
     type: zod.enum(["user", "group", "message"]),
     targetId: zod.number(),
-    reason: zod.string(),
-    status: zod.enum(["pending", "resolved"]),
+    reason: zod.enum([
+      "spam",
+      "abuse",
+      "inappropriate_content",
+      "harassment",
+      "misinformation",
+      "other",
+    ]),
+    description: zod.string().nullish(),
+    status: zod.enum(["pending", "reviewed", "resolved", "rejected"]),
     createdAt: zod.coerce.date(),
   })
   .and(
@@ -681,6 +697,64 @@ export const AdminGetReportsResponseItem = zod
     }),
   );
 export const AdminGetReportsResponse = zod.array(AdminGetReportsResponseItem);
+
+/**
+ * @summary Get a single report (admin only)
+ */
+export const AdminGetReportParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const AdminGetReportResponse = zod
+  .object({
+    id: zod.number(),
+    reporterId: zod.number(),
+    type: zod.enum(["user", "group", "message"]),
+    targetId: zod.number(),
+    reason: zod.enum([
+      "spam",
+      "abuse",
+      "inappropriate_content",
+      "harassment",
+      "misinformation",
+      "other",
+    ]),
+    description: zod.string().nullish(),
+    status: zod.enum(["pending", "reviewed", "resolved", "rejected"]),
+    createdAt: zod.coerce.date(),
+  })
+  .and(
+    zod.object({
+      reporter: zod
+        .object({
+          id: zod.number(),
+          name: zod.string(),
+          email: zod.string(),
+          faculty: zod.string(),
+          academicYear: zod.number(),
+          subjectsOfInterest: zod.array(zod.string()).optional(),
+          isBanned: zod.boolean(),
+          createdAt: zod.coerce.date().optional(),
+        })
+        .optional(),
+    }),
+  );
+
+/**
+ * @summary Update report status (admin only)
+ */
+export const AdminUpdateReportStatusParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const AdminUpdateReportStatusBody = zod.object({
+  status: zod.enum(["pending", "reviewed", "resolved", "rejected"]),
+});
+
+export const AdminUpdateReportStatusResponse = zod.object({
+  success: zod.boolean(),
+  message: zod.string().optional(),
+});
 
 /**
  * @summary Resolve a report (admin only)

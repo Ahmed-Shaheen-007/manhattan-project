@@ -5,10 +5,12 @@
  * Study Group Finder API
  * OpenAPI spec version: 0.1.0
  */
+import type { CreateReportBodyReason } from "./createReportBodyReason";
 import type { CreateReportBodyType } from "./createReportBodyType";
 
 export interface CreateReportBody {
   type: CreateReportBodyType;
   targetId: number;
-  reason: string;
+  reason: CreateReportBodyReason;
+  description?: string | null;
 }

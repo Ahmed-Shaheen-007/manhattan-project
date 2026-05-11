@@ -1,13 +1,13 @@
 import { useParams, Link } from "wouter";
 import { useGetMe, useGetUser, useGetUserGroups, useUpdateProfile } from "@workspace/api-client-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
-import { BookOpen, Calendar, MapPin, Monitor, Edit2 } from "lucide-react";
+import { BookOpen, Calendar, MapPin, Monitor, Edit2, Flag } from "lucide-react";
 import { useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { useForm } from "react-hook-form";
@@ -15,6 +15,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+import { ReportModal } from "@/components/ReportModal";
 
 const profileSchema = z.object({
   name: z.string().min(2),
@@ -70,28 +71,28 @@ function EditProfileDialog({ user, open, setOpen }: { user: any, open: boolean, 
               control={form.control}
               name="name"
               render={({ field }) => (
-                <FormItem><FormLabel>Name</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>
+                <FormItem><FormLabel>Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
               )}
             />
             <FormField
               control={form.control}
               name="faculty"
               render={({ field }) => (
-                <FormItem><FormLabel>Faculty</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>
+                <FormItem><FormLabel>Faculty</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
               )}
             />
             <FormField
               control={form.control}
               name="academicYear"
               render={({ field }) => (
-                <FormItem><FormLabel>Academic Year</FormLabel><FormControl><Input type="number" {...field} /></FormControl></FormItem>
+                <FormItem><FormLabel>Academic Year</FormLabel><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem>
               )}
             />
             <FormField
               control={form.control}
               name="subjectsOfInterest"
               render={({ field }) => (
-                <FormItem><FormLabel>Subjects of Interest (comma separated)</FormLabel><FormControl><Input {...field} /></FormControl></FormItem>
+                <FormItem><FormLabel>Subjects of Interest (comma separated)</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
               )}
             />
             <Button type="submit" className="w-full" disabled={updateMutation.isPending}>Save Changes</Button>
@@ -105,10 +106,10 @@ function EditProfileDialog({ user, open, setOpen }: { user: any, open: boolean, 
 export default function Profile() {
   const params = useParams<{ id: string }>();
   const [editOpen, setEditOpen] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
   
   const { data: me, isLoading: meLoading } = useGetMe();
   
-  // If no ID param, viewing own profile
   const targetId = params.id ? parseInt(params.id, 10) : me?.id;
   const isOwnProfile = me?.id === targetId;
 
@@ -144,9 +145,19 @@ export default function Profile() {
               <h2 className="text-2xl font-bold tracking-tight mb-1">{profileUser.name}</h2>
               <p className="text-muted-foreground mb-4">{profileUser.email}</p>
               
-              {isOwnProfile && (
+              {isOwnProfile ? (
                 <Button variant="outline" className="w-full gap-2" onClick={() => setEditOpen(true)}>
                   <Edit2 className="h-4 w-4" /> Edit Profile
+                </Button>
+              ) : me && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full gap-2 text-muted-foreground hover:text-destructive"
+                  onClick={() => setReportOpen(true)}
+                >
+                  <Flag className="h-4 w-4" />
+                  Report User
                 </Button>
               )}
               
@@ -235,6 +246,16 @@ export default function Profile() {
       </div>
 
       {isOwnProfile && <EditProfileDialog user={me} open={editOpen} setOpen={setEditOpen} />}
+
+      {!isOwnProfile && targetId && (
+        <ReportModal
+          open={reportOpen}
+          onClose={() => setReportOpen(false)}
+          targetType="user"
+          targetId={targetId}
+          targetLabel={profileUser.name}
+        />
+      )}
     </div>
   );
 }

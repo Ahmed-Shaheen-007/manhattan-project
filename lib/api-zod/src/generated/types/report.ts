@@ -5,6 +5,7 @@
  * Study Group Finder API
  * OpenAPI spec version: 0.1.0
  */
+import type { ReportReason } from "./reportReason";
 import type { ReportStatus } from "./reportStatus";
 import type { ReportType } from "./reportType";
 
@@ -13,7 +14,8 @@ export interface Report {
   reporterId: number;
   type: ReportType;
   targetId: number;
-  reason: string;
+  reason: ReportReason;
+  description?: string | null;
   status: ReportStatus;
   createdAt: Date;
 }

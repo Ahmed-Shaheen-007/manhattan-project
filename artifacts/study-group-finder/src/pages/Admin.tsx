@@ -12,7 +12,10 @@ import {
   useAdminChangeRole,
   useAdminDeleteGroup,
   useAdminDeleteMessage,
-  useAdminResolveReport,
+  useAdminUpdateReportStatus,
+  useAdminBanUser as useBanUserFromReport,
+  useAdminDeleteGroup as useDeleteGroupFromReport,
+  useAdminDeleteMessage as useDeleteMsgFromReport,
 } from "@workspace/api-client-react";
 import { useLocation } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -29,8 +32,19 @@ import {
   ShieldAlert, Users, BookOpen, MessageSquare, Activity,
   Trash2, Ban, UserCheck, Shield, ClipboardList, ScrollText,
   Search, Flag, AlertTriangle, CheckCircle2, RefreshCw,
+  Eye, EyeOff, XCircle, Clock,
 } from "lucide-react";
 import { useEffect } from "react";
+
+type ReportStatus = "pending" | "reviewed" | "resolved" | "rejected";
+type ReportFilter = "all" | ReportStatus;
+
+const STATUS_CONFIG: Record<ReportStatus, { label: string; icon: React.ReactNode; badgeClass: string }> = {
+  pending: { label: "Pending", icon: <Clock className="h-3 w-3" />, badgeClass: "text-amber-600 border-amber-200" },
+  reviewed: { label: "Reviewed", icon: <Eye className="h-3 w-3" />, badgeClass: "text-blue-600 border-blue-200" },
+  resolved: { label: "Resolved", icon: <CheckCircle2 className="h-3 w-3" />, badgeClass: "text-green-600 border-green-200" },
+  rejected: { label: "Rejected", icon: <XCircle className="h-3 w-3" />, badgeClass: "text-muted-foreground border-border" },
+};
 
 export default function Admin() {
   const [, setLocation] = useLocation();
@@ -38,7 +52,7 @@ export default function Admin() {
   const queryClient = useQueryClient();
 
   const [userSearch, setUserSearch] = useState("");
-  const [reportFilter, setReportFilter] = useState<"all" | "pending" | "resolved">("all");
+  const [reportFilter, setReportFilter] = useState<ReportFilter>("all");
   const [msgFlaggedOnly, setMsgFlaggedOnly] = useState(false);
 
   const { data: me, isLoading: isMeLoading } = useGetMe();
@@ -58,7 +72,7 @@ export default function Admin() {
     { query: { enabled: isAdmin } }
   );
   const { data: reports, refetch: refetchReports } = useAdminGetReports(
-    { status: reportFilter === "all" ? undefined : reportFilter as any },
+    { status: reportFilter === "all" ? undefined : reportFilter },
     { query: { enabled: isAdmin } }
   );
   const { data: logs, refetch: refetchLogs } = useAdminGetLogs({}, { query: { enabled: isAdmin } });
@@ -68,7 +82,10 @@ export default function Admin() {
   const changeRoleMutation = useAdminChangeRole();
   const deleteGroupMutation = useAdminDeleteGroup();
   const deleteMessageMutation = useAdminDeleteMessage();
-  const resolveReportMutation = useAdminResolveReport();
+  const updateReportStatusMutation = useAdminUpdateReportStatus();
+  const banUserFromReportMutation = useBanUserFromReport();
+  const deleteGroupFromReportMutation = useDeleteGroupFromReport();
+  const deleteMsgFromReportMutation = useDeleteMsgFromReport();
 
   const invalidate = (keys: string[]) => {
     keys.forEach(k => queryClient.invalidateQueries({ queryKey: [k] }));
@@ -116,12 +133,42 @@ export default function Admin() {
     } catch { toast({ variant: "destructive", title: "Failed to delete message" }); }
   };
 
-  const handleResolveReport = async (id: number) => {
+  const handleUpdateReportStatus = async (id: number, status: ReportStatus) => {
     try {
-      await resolveReportMutation.mutateAsync({ id });
+      await updateReportStatusMutation.mutateAsync({ id, data: { status } });
       invalidate(["/api/admin/reports", "/api/admin/stats", "/api/admin/logs"]);
-      toast({ title: "Report resolved" });
-    } catch { toast({ variant: "destructive", title: "Failed to resolve report" }); }
+      toast({ title: `Report marked as ${status}` });
+    } catch { toast({ variant: "destructive", title: "Failed to update report" }); }
+  };
+
+  const handleBanUserFromReport = async (userId: number, reportId: number) => {
+    if (!confirm(`Ban user #${userId}? They will lose access to the platform.`)) return;
+    try {
+      await banUserFromReportMutation.mutateAsync({ id: userId, data: { banned: true } });
+      await updateReportStatusMutation.mutateAsync({ id: reportId, data: { status: "resolved" } });
+      invalidate(["/api/admin/users", "/api/admin/reports", "/api/admin/stats", "/api/admin/logs"]);
+      toast({ title: "User banned and report resolved" });
+    } catch { toast({ variant: "destructive", title: "Failed to ban user" }); }
+  };
+
+  const handleDeleteGroupFromReport = async (groupId: number, reportId: number) => {
+    if (!confirm("Delete reported group? This cannot be undone.")) return;
+    try {
+      await deleteGroupFromReportMutation.mutateAsync({ id: groupId });
+      await updateReportStatusMutation.mutateAsync({ id: reportId, data: { status: "resolved" } });
+      invalidate(["/api/admin/groups", "/api/admin/reports", "/api/admin/stats", "/api/admin/logs"]);
+      toast({ title: "Group deleted and report resolved" });
+    } catch { toast({ variant: "destructive", title: "Failed to delete group" }); }
+  };
+
+  const handleDeleteMessageFromReport = async (msgId: number, reportId: number) => {
+    if (!confirm("Delete reported message?")) return;
+    try {
+      await deleteMsgFromReportMutation.mutateAsync({ id: msgId });
+      await updateReportStatusMutation.mutateAsync({ id: reportId, data: { status: "resolved" } });
+      invalidate(["/api/admin/messages", "/api/admin/reports", "/api/admin/stats", "/api/admin/logs"]);
+      toast({ title: "Message deleted and report resolved" });
+    } catch { toast({ variant: "destructive", title: "Failed to delete message" }); }
   };
 
   const filteredUsers = (users as any[])?.filter((u: any) =>
@@ -465,14 +512,16 @@ export default function Admin() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>User Reports</CardTitle>
-              <Select value={reportFilter} onValueChange={v => setReportFilter(v as any)}>
-                <SelectTrigger className="w-36 h-9">
+              <Select value={reportFilter} onValueChange={v => setReportFilter(v as ReportFilter)}>
+                <SelectTrigger className="w-40 h-9">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Reports</SelectItem>
                   <SelectItem value="pending">Pending</SelectItem>
+                  <SelectItem value="reviewed">Reviewed</SelectItem>
                   <SelectItem value="resolved">Resolved</SelectItem>
+                  <SelectItem value="rejected">Rejected</SelectItem>
                 </SelectContent>
               </Select>
             </CardHeader>
@@ -484,50 +533,101 @@ export default function Admin() {
                       <TableHead className="w-10">ID</TableHead>
                       <TableHead>Reporter</TableHead>
                       <TableHead>Type</TableHead>
-                      <TableHead>Target ID</TableHead>
+                      <TableHead>Target</TableHead>
                       <TableHead>Reason</TableHead>
+                      <TableHead>Details</TableHead>
                       <TableHead>Submitted</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {(reports as any[])?.map((r: any) => (
-                      <TableRow key={r.id}>
-                        <TableCell className="font-mono text-xs text-muted-foreground">{r.id}</TableCell>
-                        <TableCell className="text-sm">{r.reporter?.name ?? `#${r.reporterId}`}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="capitalize text-xs">{r.type}</Badge>
-                        </TableCell>
-                        <TableCell className="font-mono text-xs">#{r.targetId}</TableCell>
-                        <TableCell className="max-w-[200px]">
-                          <p className="truncate text-sm">{r.reason}</p>
-                        </TableCell>
-                        <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                          {format(new Date(r.createdAt), "MMM d, yyyy")}
-                        </TableCell>
-                        <TableCell>
-                          {r.status === "pending"
-                            ? <Badge variant="outline" className="text-xs text-amber-600 border-amber-200 gap-1"><AlertTriangle className="h-3 w-3" />Pending</Badge>
-                            : <Badge variant="outline" className="text-xs text-green-600 border-green-200 gap-1"><CheckCircle2 className="h-3 w-3" />Resolved</Badge>}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {r.status === "pending" && (
-                            <Button
-                              variant="outline" size="sm"
-                              className="text-green-600 border-green-200 hover:bg-green-50 gap-1"
-                              onClick={() => handleResolveReport(r.id)}
-                            >
-                              <CheckCircle2 className="h-4 w-4" />
-                              Resolve
-                            </Button>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                    {(reports as any[])?.map((r: any) => {
+                      const cfg = STATUS_CONFIG[r.status as ReportStatus] ?? STATUS_CONFIG.pending;
+                      return (
+                        <TableRow key={r.id} className={r.status === "pending" ? "bg-amber-50/30" : ""}>
+                          <TableCell className="font-mono text-xs text-muted-foreground">{r.id}</TableCell>
+                          <TableCell className="text-sm font-medium">{r.reporter?.name ?? `#${r.reporterId}`}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="capitalize text-xs">{r.type}</Badge>
+                          </TableCell>
+                          <TableCell className="font-mono text-xs">#{r.targetId}</TableCell>
+                          <TableCell>
+                            <span className="text-xs capitalize bg-muted px-2 py-0.5 rounded-full">
+                              {r.reason.replace(/_/g, " ")}
+                            </span>
+                          </TableCell>
+                          <TableCell className="max-w-[160px]">
+                            {r.description
+                              ? <p className="text-xs text-muted-foreground truncate" title={r.description}>{r.description}</p>
+                              : <span className="text-xs text-muted-foreground/50">—</span>}
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                            {format(new Date(r.createdAt), "MMM d, yyyy")}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className={`text-xs gap-1 ${cfg.badgeClass}`}>
+                              {cfg.icon}
+                              {cfg.label}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center justify-end gap-1 flex-wrap">
+                              {/* Status change dropdown */}
+                              <Select
+                                value={r.status}
+                                onValueChange={v => handleUpdateReportStatus(r.id, v as ReportStatus)}
+                              >
+                                <SelectTrigger className="h-7 w-28 text-xs">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="pending">Pending</SelectItem>
+                                  <SelectItem value="reviewed">Reviewed</SelectItem>
+                                  <SelectItem value="resolved">Resolved</SelectItem>
+                                  <SelectItem value="rejected">Rejected</SelectItem>
+                                </SelectContent>
+                              </Select>
+
+                              {/* Type-specific action buttons */}
+                              {r.type === "user" && r.status !== "resolved" && (
+                                <Button
+                                  variant="ghost" size="sm"
+                                  title="Ban reported user"
+                                  className="text-amber-600 hover:bg-amber-50 h-7 px-2"
+                                  onClick={() => handleBanUserFromReport(r.targetId, r.id)}
+                                >
+                                  <Ban className="h-3.5 w-3.5" />
+                                </Button>
+                              )}
+                              {r.type === "group" && r.status !== "resolved" && (
+                                <Button
+                                  variant="ghost" size="sm"
+                                  title="Delete reported group"
+                                  className="text-destructive hover:bg-destructive/10 h-7 px-2"
+                                  onClick={() => handleDeleteGroupFromReport(r.targetId, r.id)}
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+                              )}
+                              {r.type === "message" && r.status !== "resolved" && (
+                                <Button
+                                  variant="ghost" size="sm"
+                                  title="Delete reported message"
+                                  className="text-destructive hover:bg-destructive/10 h-7 px-2"
+                                  onClick={() => handleDeleteMessageFromReport(r.targetId, r.id)}
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                     {!(reports as any[])?.length && (
                       <TableRow>
-                        <TableCell colSpan={8} className="text-center text-muted-foreground py-8">No reports found</TableCell>
+                        <TableCell colSpan={9} className="text-center text-muted-foreground py-8">No reports found</TableCell>
                       </TableRow>
                     )}
                   </TableBody>

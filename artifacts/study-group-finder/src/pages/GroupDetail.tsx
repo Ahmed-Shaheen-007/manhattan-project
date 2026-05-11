@@ -12,7 +12,7 @@ import {
   useGetMe
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
@@ -27,8 +27,9 @@ import {
   Users, 
   Send, 
   ArrowLeft,
-  User as UserIcon
+  Flag,
 } from "lucide-react";
+import { ReportModal } from "@/components/ReportModal";
 
 export default function GroupDetail() {
   const { id } = useParams<{ id: string }>();
@@ -37,6 +38,12 @@ export default function GroupDetail() {
   const queryClient = useQueryClient();
   const [messageText, setMessageText] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const [reportTarget, setReportTarget] = useState<{
+    type: "group" | "message";
+    targetId: number;
+    label?: string;
+  } | null>(null);
 
   const { data: user } = useGetMe();
   const { data: group, isLoading: isGroupLoading } = useGetGroup(groupId, {
@@ -103,7 +110,6 @@ export default function GroupDetail() {
         data: { content: messageText } 
       });
       setMessageText("");
-      // Don't need to invalidate as polling will catch it, but doing it makes it instant
       queryClient.invalidateQueries({ queryKey: ["/api/groups", groupId, "messages"] });
     } catch (error: any) {
       toast({
@@ -123,6 +129,7 @@ export default function GroupDetail() {
 
   const isFull = group.memberCount >= group.maxMembers;
   const canJoin = !group.isMember && !isFull;
+  const isLoggedIn = !!user;
 
   return (
     <div className="container mx-auto p-4 md:p-8 max-w-6xl">
@@ -144,7 +151,18 @@ export default function GroupDetail() {
                     Created by {group.creator?.name || "Unknown"} • {format(new Date(group.createdAt || ""), "MMM d, yyyy")}
                   </p>
                 </div>
-                <div className="flex shrink-0">
+                <div className="flex shrink-0 gap-2">
+                  {isLoggedIn && user?.id !== group.createdBy && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-muted-foreground hover:text-destructive gap-1.5"
+                      onClick={() => setReportTarget({ type: "group", targetId: groupId, label: group.title })}
+                    >
+                      <Flag className="h-4 w-4" />
+                      Report
+                    </Button>
+                  )}
                   {group.isMember ? (
                     <Button variant="destructive" onClick={handleLeave} disabled={leaveMutation.isPending}>
                       {leaveMutation.isPending ? "Leaving..." : "Leave Group"}
@@ -247,10 +265,38 @@ export default function GroupDetail() {
                               {!isMe && <div className="text-xs font-semibold mb-1 opacity-75">{msg.user?.name}</div>}
                               <p className="text-sm break-words">{msg.content}</p>
                             </div>
+                            {!isMe && (
+                              <button
+                                className="opacity-0 group-hover:opacity-100 hover:opacity-100 focus:opacity-100 text-muted-foreground hover:text-destructive transition-opacity p-1 rounded"
+                                title="Report message"
+                                onClick={() => setReportTarget({
+                                  type: "message",
+                                  targetId: msg.id,
+                                  label: msg.content.substring(0, 60),
+                                })}
+                              >
+                                <Flag className="h-3 w-3" />
+                              </button>
+                            )}
                           </div>
-                          <span className="text-[10px] text-muted-foreground mt-1 px-10">
-                            {format(new Date(msg.createdAt), "h:mm a")}
-                          </span>
+                          <div className={`flex items-center gap-2 mt-1 px-10 ${isMe ? "flex-row-reverse" : "flex-row"}`}>
+                            <span className="text-[10px] text-muted-foreground">
+                              {format(new Date(msg.createdAt), "h:mm a")}
+                            </span>
+                            {!isMe && (
+                              <button
+                                className="text-[10px] text-muted-foreground hover:text-destructive flex items-center gap-0.5 transition-colors"
+                                onClick={() => setReportTarget({
+                                  type: "message",
+                                  targetId: msg.id,
+                                  label: msg.content.substring(0, 60),
+                                })}
+                              >
+                                <Flag className="h-2.5 w-2.5" />
+                                Report
+                              </button>
+                            )}
+                          </div>
                         </div>
                       );
                     })
@@ -308,14 +354,14 @@ export default function GroupDetail() {
                         </AvatarFallback>
                       </Avatar>
                     </Link>
-                    <div>
+                    <div className="flex-1 min-w-0">
                       <Link href={`/profile/${member.id}`} className="font-medium text-sm hover:underline">
                         {member.name}
                       </Link>
                       <p className="text-xs text-muted-foreground">{member.faculty}</p>
                     </div>
                     {member.id === group.createdBy && (
-                      <Badge variant="outline" className="ml-auto text-[10px] uppercase">Creator</Badge>
+                      <Badge variant="outline" className="text-[10px] uppercase">Creator</Badge>
                     )}
                   </div>
                 ))}
@@ -324,6 +370,16 @@ export default function GroupDetail() {
           </Card>
         </div>
       </div>
+
+      {reportTarget && (
+        <ReportModal
+          open={!!reportTarget}
+          onClose={() => setReportTarget(null)}
+          targetType={reportTarget.type}
+          targetId={reportTarget.targetId}
+          targetLabel={reportTarget.label}
+        />
+      )}
     </div>
   );
 }

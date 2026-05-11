@@ -141,11 +141,12 @@ router.delete("/admin/messages/:id", requireAuth, requireAdmin, async (req, res)
 });
 
 router.get("/admin/reports", requireAuth, requireAdmin, async (req, res): Promise<void> => {
-  const status = req.query.status as "pending" | "resolved" | undefined;
+  const status = req.query.status as string | undefined;
+  const validStatuses = ["pending", "reviewed", "resolved", "rejected"];
 
   let query = db.select().from(reportsTable).$dynamic();
-  if (status === "pending" || status === "resolved") {
-    query = query.where(eq(reportsTable.status, status));
+  if (status && validStatuses.includes(status)) {
+    query = query.where(eq(reportsTable.status, status as any));
   }
 
   const reports = await query.orderBy(desc(reportsTable.createdAt));
@@ -163,6 +164,35 @@ router.get("/admin/reports", requireAuth, requireAdmin, async (req, res): Promis
   });
 
   res.json(result);
+});
+
+router.get("/admin/reports/:id", requireAuth, requireAdmin, async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id as string, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const [report] = await db.select().from(reportsTable).where(eq(reportsTable.id, id));
+  if (!report) { res.status(404).json({ error: "Report not found" }); return; }
+
+  const [reporter] = await db.select().from(usersTable).where(eq(usersTable.id, report.reporterId));
+  const { password: _pw, ...reporterSafe } = reporter ?? { id: 0, name: "", email: "", password: "", faculty: "", academicYear: 0, subjectsOfInterest: [], isBanned: false, createdAt: new Date() };
+
+  res.json({ ...report, reporter: reporterSafe });
+});
+
+router.patch("/admin/reports/:id/status", requireAuth, requireAdmin, async (req, res): Promise<void> => {
+  const id = parseInt(req.params.id as string, 10);
+  if (isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const { status } = req.body as { status?: string };
+  const validStatuses = ["pending", "reviewed", "resolved", "rejected"];
+  if (!status || !validStatuses.includes(status)) {
+    res.status(400).json({ error: "Invalid status" });
+    return;
+  }
+
+  await db.update(reportsTable).set({ status: status as any }).where(eq(reportsTable.id, id));
+  await createLog(req.user!.userId, `REPORT_STATUS_${status.toUpperCase()}`, "report", id);
+  res.json({ success: true, message: `Report marked as ${status}` });
 });
 
 router.patch("/admin/reports/:id/resolve", requireAuth, requireAdmin, async (req, res): Promise<void> => {

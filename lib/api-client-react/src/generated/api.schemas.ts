@@ -142,11 +142,24 @@ export const ReportType = {
   message: "message",
 } as const;
 
+export type ReportReason = (typeof ReportReason)[keyof typeof ReportReason];
+
+export const ReportReason = {
+  spam: "spam",
+  abuse: "abuse",
+  inappropriate_content: "inappropriate_content",
+  harassment: "harassment",
+  misinformation: "misinformation",
+  other: "other",
+} as const;
+
 export type ReportStatus = (typeof ReportStatus)[keyof typeof ReportStatus];
 
 export const ReportStatus = {
   pending: "pending",
+  reviewed: "reviewed",
   resolved: "resolved",
+  rejected: "rejected",
 } as const;
 
 export interface Report {
@@ -154,7 +167,8 @@ export interface Report {
   reporterId: number;
   type: ReportType;
   targetId: number;
-  reason: string;
+  reason: ReportReason;
+  description?: string | null;
   status: ReportStatus;
   createdAt: string;
 }
@@ -172,10 +186,37 @@ export const CreateReportBodyType = {
   message: "message",
 } as const;
 
+export type CreateReportBodyReason =
+  (typeof CreateReportBodyReason)[keyof typeof CreateReportBodyReason];
+
+export const CreateReportBodyReason = {
+  spam: "spam",
+  abuse: "abuse",
+  inappropriate_content: "inappropriate_content",
+  harassment: "harassment",
+  misinformation: "misinformation",
+  other: "other",
+} as const;
+
 export interface CreateReportBody {
   type: CreateReportBodyType;
   targetId: number;
-  reason: string;
+  reason: CreateReportBodyReason;
+  description?: string | null;
+}
+
+export type UpdateReportStatusBodyStatus =
+  (typeof UpdateReportStatusBodyStatus)[keyof typeof UpdateReportStatusBodyStatus];
+
+export const UpdateReportStatusBodyStatus = {
+  pending: "pending",
+  reviewed: "reviewed",
+  resolved: "resolved",
+  rejected: "rejected",
+} as const;
+
+export interface UpdateReportStatusBody {
+  status: UpdateReportStatusBodyStatus;
 }
 
 export interface BanUserBody {
@@ -266,7 +307,9 @@ export type AdminGetReportsStatus =
 
 export const AdminGetReportsStatus = {
   pending: "pending",
+  reviewed: "reviewed",
   resolved: "resolved",
+  rejected: "rejected",
 } as const;
 
 export type AdminGetLogsParams = {

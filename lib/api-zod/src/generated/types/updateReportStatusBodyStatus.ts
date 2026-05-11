@@ -6,9 +6,10 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type ReportStatus = (typeof ReportStatus)[keyof typeof ReportStatus];
+export type UpdateReportStatusBodyStatus =
+  (typeof UpdateReportStatusBodyStatus)[keyof typeof UpdateReportStatusBodyStatus];
 
-export const ReportStatus = {
+export const UpdateReportStatusBodyStatus = {
   pending: "pending",
   reviewed: "reviewed",
   resolved: "resolved",

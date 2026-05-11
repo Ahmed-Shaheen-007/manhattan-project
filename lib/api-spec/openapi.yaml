@@ -664,7 +664,7 @@ paths:
           in: query
           schema:
             type: string
-            enum: [pending, resolved]
+            enum: [pending, reviewed, resolved, rejected]
       responses:
         "200":
           description: All reports
@@ -674,6 +674,56 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/ReportWithReporter"
+
+  /admin/reports/{id}:
+    get:
+      operationId: adminGetReport
+      tags: [admin]
+      summary: Get a single report (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Report detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReportWithReporter"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/reports/{id}/status:
+    patch:
+      operationId: adminUpdateReportStatus
+      tags: [admin]
+      summary: Update report status (admin only)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateReportStatusBody"
+      responses:
+        "200":
+          description: Status updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
 
   /admin/reports/{id}/resolve:
     patch:
@@ -1014,9 +1064,13 @@ components:
           type: integer
         reason:
           type: string
+          enum: [spam, abuse, inappropriate_content, harassment, misinformation, other]
+        description:
+          type: string
+          nullable: true
         status:
           type: string
-          enum: [pending, resolved]
+          enum: [pending, reviewed, resolved, rejected]
         createdAt:
           type: string
           format: date-time
@@ -1047,10 +1101,23 @@ components:
           type: integer
         reason:
           type: string
+          enum: [spam, abuse, inappropriate_content, harassment, misinformation, other]
+        description:
+          type: string
+          nullable: true
       required:
         - type
         - targetId
         - reason
+
+    UpdateReportStatusBody:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [pending, reviewed, resolved, rejected]
+      required:
+        - status
 
     BanUserBody:
       type: object

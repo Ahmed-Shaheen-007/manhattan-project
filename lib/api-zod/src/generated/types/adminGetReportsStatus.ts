@@ -11,5 +11,7 @@ export type AdminGetReportsStatus =
 
 export const AdminGetReportsStatus = {
   pending: "pending",
+  reviewed: "reviewed",
   resolved: "resolved",
+  rejected: "rejected",
 } as const;
